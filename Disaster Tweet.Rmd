@@ -1,0 +1,260 @@
+---
+title: "Disaster Tweet Prediction"
+author: "Anvil"
+date: "08/10/2020"
+output: 
+   html_document:
+      code_folding: show
+      keep_md : true
+      number_sections: true
+      toc: true
+      toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
+```
+
+# Summary
+
+
+
+# Loading packages
+
+Throughout this project, we will use the following packages:
+
+
+```{r}
+library(ggplot2)
+library(ggrepel)
+library(gridExtra)
+library(stringi)
+library(stringr)
+library(dplyr)
+library(data.table)
+library(quanteda)
+library(quanteda.textmodels)
+library(irlba)
+library(caret)
+library(randomForest)
+library(gbm)
+library(xgboost)
+library(e1071)
+```
+
+# Loading the data
+
+As a personal habit, I automate the downloading and loading processes. The original data can be found on [this Kaggle page](https://www.kaggle.com/c/nlp-getting-started/overview)
+
+```{r}
+
+# This will create a "data" folder in the current directory and store the data in it
+
+if (!file.exists("data")){
+   dir.create("data")
+}
+
+trainurl <- "https://storage.googleapis.com/kagglesdsdata/competitions/17777/869809/train.csv?GoogleAccessId=web-data@kaggle-161607.iam.gserviceaccount.com&Expires=1602402299&Signature=bP6vq%2FzMH7wwZfHDce5GKr2WaTSDQZuEtqX%2FNRtX%2B5qA0m10jVcrDUsj555XRdeijGUnJ6HkY%2BtIgLpbIsgjrFC5UUimgqwbexpPi8VaL0gFOIAa88e01FMSMNlk7lBDkzDsHmLR1pYjqY5SCX4YXFCNMnuXYbU5D87cQHMxgDZn1BFz2dJgNtj1yoympLH4UMIfvICKj8SD3xAfSFU913i6qqvVRoX19Jlmw4ejJOoJO2wFLexoaQ6UlezBDavpUpZUaxp1YzM6Y4NHNvIuIslSz45DJuYtBlDwoHOaJtrMnggAohZqHPHoz51BI%2Fsr6ImCnqVVlM5Beme%2BLTCsEw%3D%3D&response-content-disposition=attachment%3B+filename%3Dtrain.csv"
+
+trainfile <- "./data/train.csv"
+
+testurl <- "https://storage.googleapis.com/kagglesdsdata/competitions/17777/869809/test.csv?GoogleAccessId=web-data@kaggle-161607.iam.gserviceaccount.com&Expires=1602402306&Signature=KUi2ioNjD0fmj%2BNFnndPkeVjMzaV8CwlG90ZwrwC1x6rdwS8Cxz5P7a%2BdEhhfqrWk5N7cirMTcekO21t2mSHJ0b0cyH5hhxZvMdT0is9Q5oQqC852MZ5DRGFWxHHRmyqiaoqTznNn5qp6TIoqGDqu7iQkLbejBVJx57ledBVQASqN%2BvQJNJNwMduqGKWdNKnjKuG0Q9B%2F830jZS5AxQHyiSlXqIG5j9QyotLJU0MjX%2BI920vfmj6seeG57ls9ENmb7Fd5VgWdwr0Wo%2BKLGizjszLL%2BfVMmW%2F4OZC%2FlOWgvn4LpH5NrTNwPTZGA5VLUhcnHpYHH2rtxsi0Ax3tEq6zQ%3D%3D&response-content-disposition=attachment%3B+filename%3Dtest.csv"
+
+testfile <- "./data/test.csv"
+
+if (!file.exists(trainfile)){
+   download.file(trainurl, trainfile, method = "curl")
+}
+
+if (!file.exists(testfile)){
+   download.file(testurl, testfile, method = "curl")
+}
+
+testing <- read.csv(testfile)
+training <- read.csv(trainfile)
+```
+
+# Exploratory data analysis
+
+It's now time to take a look at our data. The first thing we'll do is to convert both train and test sets to data tables to make future modifications easier. 
+
+```{r}
+training <- data.table(training)
+testing <- data.table(testing)
+```
+
+For future data cleaning and processing, we'll combine the training and testing set into one complete set :
+
+```{r}
+comb <- data.table(rbind(training, mutate(testing, target = NA)))
+```
+
+We'll also store the testing set IDs which will be necessary for future submissions :
+
+```{r}
+test_id <- testing$id
+```
+
+
+
+## Dimensions
+
+Let's have a look at the dimensions of our training set :
+
+```{r}
+dim(training)
+```
+
+## Exploring the response variable
+
+Ou response variable is *target*, which takes the value 1 if a tweet is about a real disaster and 0 if not.
+
+```{r}
+ct <- c(nrow(filter(comb[!is.na(target), ], target == 0)), 
+        nrow(filter(comb[!is.na(target), ], target == 1)))
+
+ggplot(data = comb[!is.na(target), ], aes(x = factor(target), fill = target)) + 
+   geom_bar(stat = "count") + theme(legend.position = "none") +
+   labs(x = "Target (1 if disaster related tweet, 0 if not)", y = "Count")+
+   ggtitle("Response variable repartition in the training set") +
+   geom_text(stat = "count", aes(label = ..count..), vjust = -1) +
+   coord_cartesian(ylim = c(0, 5000))
+   
+```
+
+In our training set, the response variable's repartition is rather balanced, which means we have the possibility to built a very accurate model.
+
+# Feature Engineering
+
+## Text Length
+
+```{r}
+comb[, text_length := nchar(text), by = seq_len(nrow(comb))]
+```
+
+```{r}
+ggplot(comb[!is.na(target), ], aes(x = factor(target), y = text_length, fill = target)) + geom_boxplot()
+```
+
+Disaster tweets seem to be a bit longer
+
+## Number of links
+
+```{r}
+
+```
+
+## Number of punctuation
+
+## Number of hashtags
+
+## Number of mentions
+
+
+# Creating a DFM
+
+## Tokenization
+
+The first thing we will do with our training set is tokenization : we will split our lines of text into chunks of words. For instance, we want the sentence "This watch is Mike's" to become ["this" "watch" "is" "mike" "s"].
+
+This is where the package quanteda comes in ; it can automate this process with its tokens() function. We will set the following parameters :
+
+- Do not tokenize numbers
+- Do not tokenize punctuation
+- Do not tokenize isolated symbols such as dollar signs or hash
+- Do not tokenize URLS
+- Do not tokenize twitter words such as "rt" 
+- Split hyphenated words
+
+```{r}
+comb_corpus <- corpus(comb$text)
+comb_corpus <- stri_replace_all_regex(comb_corpus, "[\\p{p}\\p{S}]", "")
+comb_corpus <- stri_replace_all_regex(comb_corpus, "http.*", "")
+comb_tokens <- tokens(comb_corpus, what = "word", remove_numbers = T,
+                       remove_punct = T, remove_symbols = T, split_hyphens = T,
+                       remove_url = T, remove_twitter = T)
+```
+
+
+## Preprocessing the tokens
+
+```{r}
+comb_tokens <- tokens_tolower(comb_tokens)
+comb_tokens <- tokens_select(comb_tokens, stopwords(), selection = "remove")
+comb_tokens <- tokens_wordstem(comb_tokens)
+```
+
+## Creating the DFM 
+
+```{r}
+comb_dfm <- dfm(comb_tokens)
+comb_dfm <- dfm_trim(comb_dfm, min_termfreq = 5)
+```
+
+We obtain our document frequency matrix, for which we trimmed down words that appear less than 5 times overall. 
+
+We still end up with a very large matrix :
+
+```{r}
+dim(comb_dfm)
+```
+
+Therefore, we'll want to see which features provide the most variability, which means analyzing the singular value decomposition of our DFM
+
+# SVD
+
+Out of the `r dim(comb_dfm)[2]` features we have, we'll only keep the 200 that provide the most variability. This SVD process can be automated by the **irlba** function by the package of the same name :
+
+```{r}
+comb_svd <- irlba(t(comb_dfm), nv = 200, maxit = 1000)
+comb_topfeatures <- comb_svd$v
+```
+
+# Creating the complete data table
+
+```{r}
+comb_complete <- data.table(target = comb$target, text_length = comb$text_length, comb_topfeatures)
+```
+
+
+## splitting back to training and testing 
+
+```{r}
+training_range <- 1:nrow(training)
+testing_range <- (nrow(training)+1):nrow(comb)
+model_train <- comb_complete[training_range]
+preproc_test <- comb_complete[testing_range]
+```
+
+# Model Building
+
+# XGBoost
+
+```{r, eval=F}
+
+library(parallel)
+library(doParallel)
+cluster1 <- makeCluster(detectCores() - 2)
+registerDoParallel(cluster1)
+
+trctrl <- trainControl(method = "cv", number = 5, allowParallel = T, 
+                       verboseIter = F)
+
+xgbGrid <- expand.grid(nrounds = 750,  
+                       max_depth = seq(1, 10, by = 1),
+                       colsample_bytree = seq(0.2, 0.6, length.out = 5),
+                       eta = seq(0.04, 0.7, length.out = 4),
+                       gamma=0,
+                       min_child_weight = seq(1, 5, by = 1),
+                       subsample = 1
+                      )
+set.seed(69420)
+modfit_xgbm <- caret::train(target ~ ., data = model_train,
+                            method = "xgbTree", 
+                            trControl = trctrl,
+                            tuneGrid = xgbGrid, verbose = F)
+stopCluster(cluster1)
+registerDoSEQ()
+
+```
+
