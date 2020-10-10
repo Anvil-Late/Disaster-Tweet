@@ -211,6 +211,29 @@ We still end up with a very large matrix :
 dim(comb_dfm)
 ```
 
+# Back to feature engineering : word matches
+
+## Unigrams
+
+### Most frequent unigrams
+
+```{r}
+dis_ss <- comb$target == 1 ; dis_ss[is.na(dis_ss)] <- F
+nodis_ss <- comb$target == 0 ; nodis_ss[is.na(nodis_ss)] <- F
+```
+
+```{r}
+dis_unidfm <- comb_dfm[dis_ss, ]
+dis_unicount <- colSums(dis_unidfm)
+dis_unicount <- dis_unicount[dis_unicount > 80]
+```
+
+```{r}
+nodis_unidfm <- comb_dfm[nodis_ss, ]
+nodis_unicount <- colSums(nodis_unidfm)
+nodis_unicount <- nodis_unicount[nodis_unicount > 80]
+```
+
 
 
 # SVD
