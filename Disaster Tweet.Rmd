@@ -302,19 +302,68 @@ nodis_freq2gs <- nodis_freq2gs[-red_nodis2g]
 ```
 
 ```{r}
-preprocessed_tokens <- sapply(comb_tokens, paste, sep = "_")
+preprocessed_tokens <- list()
+
+for (i in 1:length(comb_tokens)){
+   rslt <- paste(comb_tokens[i], collapse = "_")
+   preprocessed_tokens <- append(preprocessed_tokens, rslt)
+}
+
+```
+
+```{r}
+bigram_match <- function(textinput, bigram_list){
+   num_output <- sum(str_count(textinput, bigram_list))
+   num_output
+}
+```
+
+```{r}
+nr_disaster2gs <- sapply(preprocessed_tokens, bigram_match, dis_freq2gs)
+nr_noDisaster2gs <- sapply(preprocessed_tokens, bigram_match, nodis_freq2gs)
+```
+
+```{r}
+comb$nr_disaster2gs <- nr_disaster2gs
+comb$nr_noDisaster2gs <- nr_noDisaster2gs
 ```
 
 # SVD
 
 Given the size of our DFM, we'll want to see which features provide the most variability, which means analyzing its singular value decomposition.
 
-Out of the `r dim(comb_dfm)[2]` features we have, we'll only keep the 200 that provide the most variability. This SVD process can be automated by the **irlba** function by the package of the same name :
+Let's find out how many singular vectors we need to capture 90% of the variance :
+
+```{r, eval=F}
+prep <- preProcess(comb_dfm, method = c("center", "scale", "pca"), thresh = 0.9)
+```
+
+```{r, echo=F}
+load
+```
 
 ```{r}
-comb_svd <- irlba(t(comb_dfm), nv = 200, maxit = 1000)
+prep
+```
+
+Out of the `r dim(comb_dfm)[2]` features we have, we'll only keep the 1889 that provide the most variability. This SVD process can be automated by the **irlba** function by the package of the same name :
+
+```{r, eval=F}
+comb_svd <- irlba(t(comb_dfm), nv = 1889, maxit = 1000)
 comb_topfeatures <- comb_svd$v
 ```
+
+```{r, eval=F}
+load
+```
+
+# Encoding the keyword variables
+
+```{r}
+comb[keyword == ""]$keyword <- "None"
+```
+
+
 
 # Creating the complete data table
 
