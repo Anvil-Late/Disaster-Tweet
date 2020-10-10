@@ -272,6 +272,39 @@ comb_bigrams <- tokens_ngrams(comb_tokens, n = 2)
 comb_dfm2g <- dfm(comb_bigrams)
 ```
 
+```{r}
+dis_dfm2g <- comb_dfm2g[dis_ss, ]
+dis_count2g <- colSums(dis_dfm2g)
+dis_count2g <- dis_count2g[dis_count2g > 25]
+
+textplot_wordcloud(dis_dfm2g, min.freq = 25, color = brewer.pal(10, "BrBG"))  
+title("Most frequent bigrams (2Gs) in non-disaster tweets", col.main = "grey14")
+```
+
+```{r}
+nodis_dfm2g <- comb_dfm2g[nodis_ss, ]
+nodis_count2g <- colSums(nodis_dfm2g)
+nodis_count2g <- nodis_count2g[nodis_count2g > 15]
+
+textplot_wordcloud(nodis_dfm2g, min.freq = 15, color = brewer.pal(10, "BrBG"))  
+title("Most frequent bigrams (2Gs) in non-disaster tweets", col.main = "grey14")
+```
+
+```{r}
+dis_freq2gs <- names(dis_count2g)
+nodis_freq2gs <- names(nodis_count2g)
+
+red_dis2g <- which(dis_freq2gs %in% nodis_freq2gs)
+red_nodis2g <- which(nodis_freq2gs %in% dis_freq2gs)
+
+dis_freq2gs <- dis_freq2gs[-red_dis2g]
+nodis_freq2gs <- nodis_freq2gs[-red_nodis2g]
+```
+
+```{r}
+preprocessed_tokens <- sapply(comb_tokens, paste, sep = "_")
+```
+
 # SVD
 
 Given the size of our DFM, we'll want to see which features provide the most variability, which means analyzing its singular value decomposition.
