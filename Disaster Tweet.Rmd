@@ -141,14 +141,26 @@ Disaster tweets seem to be a bit longer
 ## Number of links
 
 ```{r}
-
+comb[, nr_links := str_count(text, "http"), by = seq_len(nrow(comb))]
 ```
 
 ## Number of punctuation
 
+```{r}
+comb[, nr_punc := str_count(text, "[\\!\\?\\:\\.]"), by = seq_len(nrow(comb))]
+```
+
 ## Number of hashtags
 
+```{r}
+comb[, nr_hashtags := str_count(text, "#"), by = seq_len(nrow(comb))]
+```
+
 ## Number of mentions
+
+```{r}
+comb[, nr_mentions := str_count(text, "@"), by = seq_len(nrow(comb))]
+```
 
 
 # Creating a DFM
@@ -199,9 +211,11 @@ We still end up with a very large matrix :
 dim(comb_dfm)
 ```
 
-Therefore, we'll want to see which features provide the most variability, which means analyzing the singular value decomposition of our DFM
+
 
 # SVD
+
+Given the size of our DFM, we'll want to see which features provide the most variability, which means analyzing its singular value decomposition.
 
 Out of the `r dim(comb_dfm)[2]` features we have, we'll only keep the 200 that provide the most variability. This SVD process can be automated by the **irlba** function by the package of the same name :
 
