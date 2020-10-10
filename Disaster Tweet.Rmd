@@ -34,6 +34,7 @@ library(dplyr)
 library(data.table)
 library(quanteda)
 library(quanteda.textmodels)
+library(RColorBrewer)
 library(irlba)
 library(caret)
 library(randomForest)
@@ -226,15 +227,50 @@ nodis_ss <- comb$target == 0 ; nodis_ss[is.na(nodis_ss)] <- F
 dis_unidfm <- comb_dfm[dis_ss, ]
 dis_unicount <- colSums(dis_unidfm)
 dis_unicount <- dis_unicount[dis_unicount > 80]
+dis_freq1gs <- names(dis_unicount)
+```
+
+
+
+```{r}
+textplot_wordcloud(dis_unidfm, min.freq = 80, color = brewer.pal(10, "BrBG"))  
+title("Most frequent words in disaster tweets", col.main = "grey14")
 ```
 
 ```{r}
 nodis_unidfm <- comb_dfm[nodis_ss, ]
 nodis_unicount <- colSums(nodis_unidfm)
 nodis_unicount <- nodis_unicount[nodis_unicount > 80]
+nodis_freq1gs <- names(nodis_unicount)
 ```
 
+```{r}
+textplot_wordcloud(nodis_unidfm, min.freq = 80, color = brewer.pal(10, "BrBG"))  
+title("Most frequent words in non-disaster tweets", col.main = "grey14")
+```
+### Number of disaster or non-disaster words per tweet
 
+```{r}
+red_dis1g <- which(dis_freq1gs %in% nodis_freq1gs)
+red_nodis1g <- which(nodis_freq1gs %in% dis_freq1gs)
+
+dis_freq1gs <- dis_freq1gs[-red_dis1g]
+nodis_freq1gs <- nodis_freq1gs[-red_nodis1g]
+```
+
+```{r}
+comb[, nr_disasterWords := sum(str_count(text, dis_freq1gs)), by = seq_len(nrow(comb))]
+comb[, nr_noDisasterWords := sum(str_count(text, nodis_freq1gs)), by = seq_len(nrow(comb))]
+```
+
+## Bigrams
+
+### Most frequent bigrams :
+
+```{r}
+comb_bigrams <- tokens_ngrams(comb_tokens, n = 2)
+comb_dfm2g <- dfm(comb_bigrams)
+```
 
 # SVD
 
