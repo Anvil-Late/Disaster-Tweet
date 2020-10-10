@@ -139,28 +139,34 @@ ggplot(comb[!is.na(target), ], aes(x = factor(target), y = text_length, fill = t
 
 Disaster tweets seem to be a bit longer
 
+## Number of capital letters
+
+```{r}
+comb[, ncaps := str_count(text, "[A-Z]"), by = seq_len(nrow(comb))]
+```
+
 ## Number of links
 
 ```{r}
-comb[, nr_links := str_count(text, "http"), by = seq_len(nrow(comb))]
+comb[, linkcount := str_count(text, "http"), by = seq_len(nrow(comb))]
 ```
 
 ## Number of punctuation
 
 ```{r}
-comb[, nr_punc := str_count(text, "[\\!\\?\\:\\.]"), by = seq_len(nrow(comb))]
+comb[, punc_count := str_count(text, "[\\!\\?\\:\\.]"), by = seq_len(nrow(comb))]
 ```
 
 ## Number of hashtags
 
 ```{r}
-comb[, nr_hashtags := str_count(text, "#"), by = seq_len(nrow(comb))]
+comb[, hashtag_count := str_count(text, "#"), by = seq_len(nrow(comb))]
 ```
 
 ## Number of mentions
 
 ```{r}
-comb[, nr_mentions := str_count(text, "@"), by = seq_len(nrow(comb))]
+comb[, mention_count := str_count(text, "@"), by = seq_len(nrow(comb))]
 ```
 
 
@@ -363,12 +369,29 @@ load
 comb[keyword == ""]$keyword <- "None"
 ```
 
-
+```{r}
+kw <- data.table(comb$keyword) ; names(kw) <- "keyword_"
+ohe <- dummyVars(~ ., data = kw)
+ohecat_kw <- predict(ohe, kw)
+ohecat_kw <- data.table(ohecat_kw)
+```
 
 # Creating the complete data table
 
 ```{r}
-comb_complete <- data.table(target = comb$target, text_length = comb$text_length, comb_topfeatures)
+comb_complete <- data.table(target = comb$target, 
+                            ncaps = comb$ncaps,
+                            text_length = comb$text_length,
+                            linkcount = comb$linkcount,
+                            hashtag_count = comb$hashtag_count,
+                            mention_count = comb$mention_count,
+                            punc_count = comb$mention_count,
+                            nr_disasterWords = comb$nr_disasterWords,
+                            nr_noDisasterWords = comb$nr_noDisasterWords,
+                            nr_disaster2gs = comb$nr_disaster2gs,
+                            nr_noDisaster2gs = comb$nr_noDisaster2gs,
+                            ohecat_kw,
+                            comb_topfeatures)
 ```
 
 
@@ -383,7 +406,7 @@ preproc_test <- comb_complete[testing_range]
 
 # Model Building
 
-# XGBoost
+## XGBoost
 
 ```{r, eval=F}
 
@@ -413,3 +436,81 @@ registerDoSEQ()
 
 ```
 
+
+Let's see what the best tune for the XGB model is :
+
+```{r}
+modfit_xgbm$bestTune
+```
+
+We set these as default hyperparameters :
+
+```{r}
+xgbparam <- list(objective = "binary:logistic",
+                 booster = "gbtree",
+                 max_depth = 6,
+                 colsample_bytree = 0.5,
+                 eta = 0.01,
+                 gamma=0,
+                 min_child_weight = 1,
+                 subsample = 1
+                )
+
+```
+
+Now we'll do another series of cross-validations, this time to figure out the best number of rounds :
+
+```{r}
+set.seed(1234)
+xgb_cv <- xgb.cv(params = xgbparam, data = as.matrix(model_train), 
+                 nrounds = 10000, nfold = 5, showsd = T, stratified = T, 
+                 print_every_n = 15, early_stopping_rounds = 5, maximize = F, 
+                 label = model_train$target)
+```
+
+we now know all the parameters for a perfect xgb model fit :
+
+```{r}
+dmat_train <- xgb.DMatrix(data = as.matrix(select(model_train, -target)), label = model_train$target)
+
+```
+
+```{r, eval=F}
+modfit_xgbm2 <- xgb.train(dmat_train, params = xgbparam, nrounds = 20)
+```
+
+```{r}
+imp_mat <- xgb.importance(feature_names = colnames(model_train), model = modfit_xgbm2)
+xgb.ggplot.importance(importance_matrix = imp_mat[1:20], rel_to_first = T)
+```
+
+## Random Forest
+
+```{r, eval=F}
+library(parallel)
+library(doParallel)
+cluster1 <- makeCluster(detectCores() - 2)
+registerDoParallel(cluster1)
+
+set.seed(69420)
+modfit_rf <- caret::train(target ~ ., data = model_train,
+                            method = "rf", 
+                            trControl = trctrl)
+stopCluster(cluster1)
+registerDoSEQ()
+```
+
+```{r}
+imp_rf <- importance(modfit_rf$finalModel)
+imp_rf <- data.table(variables = row.names(imp_rf), inc_mse = imp_rf[, 1])
+imp_rf <- arrange(imp_rf, desc(inc_mse))
+imp_rf <- imp_rf[1:20]
+
+ggplot(data = imp_rf, 
+       aes(x = reorder(variables, inc_mse), y = inc_mse, fill = inc_mse)) + 
+   geom_bar(stat = "identity") +
+   theme(legend.position = "none")+
+   labs(x = "Features", 
+        y = "% increase in MSE if variable is shuffled")+
+   coord_flip()
+```
