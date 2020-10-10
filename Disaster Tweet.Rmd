@@ -402,6 +402,7 @@ training_range <- 1:nrow(training)
 testing_range <- (nrow(training)+1):nrow(comb)
 model_train <- comb_complete[training_range]
 preproc_test <- comb_complete[testing_range]
+preproc_test <- select(preproc_test, -target)
 ```
 
 # Model Building
@@ -513,4 +514,30 @@ ggplot(data = imp_rf,
    labs(x = "Features", 
         y = "% increase in MSE if variable is shuffled")+
    coord_flip()
+```
+
+# Predictions
+
+```{r}
+dmat_pptest <- xgb.DMatrix(data = as.matrix(preproc_test))
+answer_xgbm <- predict(modfit_xgbm2, dmat_pptest)
+answer_xgbm_r <- round(answer_xgbm)
+
+answer_rf <- predict(modfit_rf, preproc_test)
+answer_rf_r <- round(answer_rf)
+
+answer_ensemble <- (answer_xgbm + answer_rf) / 2
+answer_ensemble_r <- round(answer_ensemble)
+```
+
+```{r}
+solution_xgbm <- data.frame(Id = test_id, target = answer_xgbm_r)
+solution_rf <- data.frame(Id = test_id, target = answer_rf_r)
+solution_ensemble <- data.frame(Id = test_id, target = answer_ensemble_r)
+```
+
+```{r, eval=F}
+write.csv(solution_xgbm, "disaster_tweet_solution_xgbm.csv", row.names = F)
+write.csv(solution_rf, "disaster_tweet_solution_rf.csv", row.names = F)
+write.csv(solution_ensemble, "disaster_tweet_solution_ensemble.csv", row.names = F)
 ```
