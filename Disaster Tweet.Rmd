@@ -345,7 +345,7 @@ prep <- preProcess(comb_dfm, method = c("center", "scale", "pca"), thresh = 0.9)
 ```
 
 ```{r, echo=F}
-load
+load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/prep.RData"))
 ```
 
 ```{r}
@@ -360,7 +360,7 @@ comb_topfeatures <- comb_svd$v
 ```
 
 ```{r, eval=F}
-load
+load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/comb_topfeatures.RData"))
 ```
 
 # Encoding the keyword variables
@@ -437,6 +437,9 @@ registerDoSEQ()
 
 ```
 
+```{r, echo=F}
+load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/modfit_xgbm.RData"))
+```
 
 Let's see what the best tune for the XGB model is :
 
@@ -499,6 +502,10 @@ modfit_rf <- caret::train(target ~ ., data = model_train,
                             trControl = trctrl)
 stopCluster(cluster1)
 registerDoSEQ()
+```
+
+```{r, echo=F}
+load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/modfit_rf.RData"))
 ```
 
 ```{r}
