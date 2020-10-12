@@ -274,6 +274,7 @@ nodis_freq1gs <- names(nodis_unicount)
 textplot_wordcloud(nodis_unidfm, min.freq = 80, color = brewer.pal(10, "BrBG"))  
 title("Most frequent words in non-disaster tweets", col.main = "grey14")
 ```
+
 ### Number of disaster or non-disaster words per tweet
 
 Before creating our new features, we'll remove frequent unigrams that are common to both disaster and non-disaster tweets :
@@ -558,6 +559,8 @@ modfit_xgbm2 <- xgb.train(dmat_train, params = xgbparam, nrounds = 20)
 load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/modfit_xgbm2.RData"))
 ```
 
+XGBoost models can also be used to plot feature importance graphs :
+
 ```{r}
 imp_mat <- xgb.importance(feature_names = colnames(model_train), model = modfit_xgbm2)
 xgb.ggplot.importance(importance_matrix = imp_mat[1:20], rel_to_first = T)
@@ -583,6 +586,8 @@ registerDoSEQ()
 load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/modfit_rf.RData"))
 ```
 
+Just like XGBoost models, we can also use Random Forest models to plot feature importance graphs :
+
 ```{r}
 imp_rf <- importance(modfit_rf$finalModel)
 imp_rf <- data.table(variables = row.names(imp_rf), inc_mse = imp_rf[, 1])
@@ -598,7 +603,11 @@ ggplot(data = imp_rf,
    coord_flip()
 ```
 
+So far, our models disagree on which features are the most important. We can expect a difference in accuracies between the two.
+
 ## SVM
+
+Lastly, we'll build a classification SVM model :
 
 ```{r, eval=F}
 modfit_svm <- svm(target ~ ., data = model_train, 
