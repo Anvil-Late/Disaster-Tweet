@@ -338,30 +338,16 @@ comb$nr_noDisaster2gs <- nr_noDisaster2gs
 
 Given the size of our DFM, we'll want to see which features provide the most variability, which means analyzing its singular value decomposition.
 
-Let's find out how many singular vectors we need to capture 90% of the variance :
+Out of the `r dim(comb_dfm)[2]` unigrams and `r dim(comb_dfm2g)[2]` bigrams we have, we'll only keep the 100 for each DFM that provide the most variability. This SVD process can be automated by the **irlba** function by the package of the same name :
 
 ```{r, eval=F}
-prep <- preProcess(comb_dfm, method = c("center", "scale", "pca"), thresh = 0.9)
+comb_svd1g <- irlba(t(comb_dfm), nv = 100, maxit = 1000)
+comb_topfeatures1g <- comb_svd1g$v
+
+comb_svd2g <- irlba(t(comb_dfm2g), nv = 100, maxit = 1000)
+comb_topfeatures2g <- comb_svd2g$v
 ```
 
-```{r, echo=F}
-load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/prep.RData"))
-```
-
-```{r}
-prep
-```
-
-Out of the `r dim(comb_dfm)[2]` features we have, we'll only keep the 1889 that provide the most variability. This SVD process can be automated by the **irlba** function by the package of the same name :
-
-```{r, eval=F}
-comb_svd <- irlba(t(comb_dfm), nv = 1889, maxit = 1000)
-comb_topfeatures <- comb_svd$v
-```
-
-```{r, eval=F}
-load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/comb_topfeatures.RData"))
-```
 
 # Encoding the keyword variables
 
@@ -374,6 +360,17 @@ kw <- data.table(comb$keyword) ; names(kw) <- "keyword_"
 ohe <- dummyVars(~ ., data = kw)
 ohecat_kw <- predict(ohe, kw)
 ohecat_kw <- data.table(ohecat_kw)
+```
+
+## Low variation dummy variables
+
+One-hot encoding added a lot of variables in our dataset and there could be some that could have near zero occurences. Not only would these bring low predictive value to our model, it could even make it overfit our training set and lower its performance. 
+
+What we'll do here is that we will remove dummy variables that appear less than 15 times.
+
+```{r}
+low_occurence <- names(which(ohecat_kw[, lapply(.SD, sum) < 15]))
+ohecat_kw <- select(ohecat_kw, -low_occurence)
 ```
 
 # Creating the complete data table
