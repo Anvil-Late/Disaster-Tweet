@@ -17,6 +17,9 @@ knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
 
 # Summary
 
+The goal of this project is to use natural language processing on tweets and build a model to figure out whether a tweet is about a disaster or not.
+
+The original dataset can be found on the ["Real or Not ? NLP with Disaster Tweets" Kaggle competition](https://www.kaggle.com/c/nlp-getting-started/overview), and, while the actual results are public (which explains the abnormally high amount of 100% accuracy submissions on the leaderboard), our goal here is to use efficient NLP tools and spend time on feature engineering and model building to maximize our submissions' accuracies.
 
 
 # Loading packages
@@ -45,7 +48,7 @@ library(e1071)
 
 # Loading the data
 
-As a personal habit, I automate the downloading and loading processes. The original data can be found on [this Kaggle page](https://www.kaggle.com/c/nlp-getting-started/overview)
+As a personal habit, I automate the downloading and loading processes.
 
 ```{r}
 
@@ -126,6 +129,15 @@ ggplot(data = comb[!is.na(target), ], aes(x = factor(target), fill = target)) +
 In our training set, the response variable's repartition is rather balanced, which means we have the possibility to built a very accurate model.
 
 # Feature Engineering
+
+Here we'll create the following variables :
+
+- Text length
+- Number of capital letters
+- Number of links in the tweet
+- Number of punctuation
+- Number of hashtags 
+- Number of mentions
 
 ## Text Length
 
@@ -220,6 +232,10 @@ dim(comb_dfm)
 
 # Back to feature engineering : word matches
 
+Now that we ceated our tokens and DFM, we can find out what the most frequent single words - or unigrams - are for disaster tweets and non-disaster tweets. After that, we'll add new variables that count how many of these words are in a tweet. 
+
+We'll also do that for 2-word associations - or bigrams.
+
 ## Unigrams
 
 ### Most frequent unigrams
@@ -237,11 +253,15 @@ dis_freq1gs <- names(dis_unicount)
 ```
 
 
+We can now plot a wordcloud which contains the most frequent unigrams for disaster tweets :
+
 
 ```{r}
 textplot_wordcloud(dis_unidfm, min.freq = 80, color = brewer.pal(10, "BrBG"))  
 title("Most frequent words in disaster tweets", col.main = "grey14")
 ```
+
+And we do the same for non-disaster tweets :
 
 ```{r}
 nodis_unidfm <- comb_dfm[nodis_ss, ]
@@ -255,6 +275,8 @@ textplot_wordcloud(nodis_unidfm, min.freq = 80, color = brewer.pal(10, "BrBG"))
 title("Most frequent words in non-disaster tweets", col.main = "grey14")
 ```
 ### Number of disaster or non-disaster words per tweet
+
+Before creating our new features, we'll remove frequent unigrams that are common to both disaster and non-disaster tweets :
 
 ```{r}
 red_dis1g <- which(dis_freq1gs %in% nodis_freq1gs)
@@ -271,12 +293,18 @@ comb[, nr_noDisasterWords := sum(str_count(text, nodis_freq1gs)), by = seq_len(n
 
 ## Bigrams
 
+We'll repeat the exact same process on bigrams.
+
 ### Most frequent bigrams :
+
+We'll start by creating the bigram DFM :
 
 ```{r}
 comb_bigrams <- tokens_ngrams(comb_tokens, n = 2)
 comb_dfm2g <- dfm(comb_bigrams)
 ```
+
+We can now isolate those from disaster tweets and plot the wordcloud :
 
 ```{r}
 dis_dfm2g <- comb_dfm2g[dis_ss, ]
@@ -284,8 +312,10 @@ dis_count2g <- colSums(dis_dfm2g)
 dis_count2g <- dis_count2g[dis_count2g > 25]
 
 textplot_wordcloud(dis_dfm2g, min.freq = 25, color = brewer.pal(10, "BrBG"))  
-title("Most frequent bigrams (2Gs) in non-disaster tweets", col.main = "grey14")
+title("Most frequent bigrams (2Gs) in disaster tweets", col.main = "grey14")
 ```
+
+Now we do the same for non-disaster tweets :
 
 ```{r}
 nodis_dfm2g <- comb_dfm2g[nodis_ss, ]
@@ -295,6 +325,8 @@ nodis_count2g <- nodis_count2g[nodis_count2g > 15]
 textplot_wordcloud(nodis_dfm2g, min.freq = 15, color = brewer.pal(10, "BrBG"))  
 title("Most frequent bigrams (2Gs) in non-disaster tweets", col.main = "grey14")
 ```
+
+We'll now create the a list of these frequent bigrams and remove those that are common for both disaster and non-disaster tweets :
 
 ```{r}
 dis_freq2gs <- names(dis_count2g)
@@ -307,7 +339,21 @@ dis_freq2gs <- dis_freq2gs[-red_dis2g]
 nodis_freq2gs <- nodis_freq2gs[-red_nodis2g]
 ```
 
+When we look at our bigrams list, for instance in the wordclouds, we can see that the words are stemmed and joined by underscores :
+
 ```{r}
+dis_freq2gs[1:5]
+```
+
+Therefore, when we want to count how many time those words appear in a tweet, we can't use the raw data in which the tweets are neither stemmed nor joined. Luckily, we can use the words from our tokens list that have been stemmed :
+
+```{r}
+comb_tokens[[1]][1:3]
+```
+
+We'll just have to pre-process it so that the words are joined by underscores, and then we can find the matches :
+
+```{r, eval=F}
 preprocessed_tokens <- list()
 
 for (i in 1:length(comb_tokens)){
@@ -324,15 +370,22 @@ bigram_match <- function(textinput, bigram_list){
 }
 ```
 
-```{r}
+```{r, eval=F}
 nr_disaster2gs <- sapply(preprocessed_tokens, bigram_match, dis_freq2gs)
 nr_noDisaster2gs <- sapply(preprocessed_tokens, bigram_match, nodis_freq2gs)
+```
+
+```{r, echo=F}
+load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/nr_disaster2gs.RData"))
+load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/nr_noDisaster2gs.RData"))
 ```
 
 ```{r}
 comb$nr_disaster2gs <- nr_disaster2gs
 comb$nr_noDisaster2gs <- nr_noDisaster2gs
 ```
+
+
 
 # SVD
 
@@ -355,12 +408,23 @@ names(comb_topfeatures2g) <- paste("B", as.character(1:100), sep = "")
 
 ```
 
+```{r, echo=F}
+load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/tf1g.RData"))
+load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/tf2g.RData"))
+```
+
 
 # Encoding the keyword variables
+
+To use machine learning models to their top efficiency, all of the predictors need to be numeric, which means that categorical variables need to be encoded into dummy variables. We'll do that for our *keyword* variable.
+
+Firstly, we'll change empty *keyword* values to "None" :
 
 ```{r}
 comb[keyword == ""]$keyword <- "None"
 ```
+
+Then we do the actual encoding :
 
 ```{r}
 kw <- data.table(comb$keyword) ; names(kw) <- "keyword_"
@@ -371,7 +435,7 @@ ohecat_kw <- data.table(ohecat_kw)
 
 ## Low variation dummy variables
 
-One-hot encoding added a lot of variables in our dataset and there could be some that could have near zero occurences. Not only would these bring low predictive value to our model, it could even make it overfit our training set and lower its performance. 
+Encoding added a lot of variables in our dataset and there could be some that could have near zero occurences. Not only would these bring low predictive value to our model, it could even make it overfit our training set and lower its performance. 
 
 What we'll do here is that we will remove dummy variables that appear less than 15 times.
 
@@ -490,6 +554,10 @@ dmat_train <- xgb.DMatrix(data = as.matrix(select(model_train, -target)), label 
 modfit_xgbm2 <- xgb.train(dmat_train, params = xgbparam, nrounds = 20)
 ```
 
+```{r, echo=F}
+load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/modfit_xgbm2.RData"))
+```
+
 ```{r}
 imp_mat <- xgb.importance(feature_names = colnames(model_train), model = modfit_xgbm2)
 xgb.ggplot.importance(importance_matrix = imp_mat[1:20], rel_to_first = T)
@@ -540,6 +608,9 @@ modfit_svm <- svm(target ~ ., data = model_train,
                   coef0 = 0.8)
 ```
 
+```{r, echo = F}
+load(url("https://github.com/Anvil-Late/Disaster-Tweet/raw/main/data/modfit_svm.RData"))
+```
 
 # Predictions
 
